@@ -188,8 +188,8 @@ function diagResult(){
   let h=`<h2>🩺 Resultaat diagnose</h2><div class="card"><div style="font-size:34px;font-weight:800;color:${pct>=80?'var(--acc)':pct>=55?'var(--gold)':'var(--red)'}">${s}/${t} · ${pct}%</div><div style="margin-top:8px">${esc(advies)}</div></div>`;
   if(weak.length){
     h+='<h3>📋 Mijn advies: doe deze thema\'s in deze volgorde</h3><div class="card">';
-    weak.forEach((w,i)=>{ h+=`<div class="plan-item"><div class="plan-tijd" style="min-width:26px">${i+1}.</div><div><div class="plan-blok">${esc(w[0])}</div><div class="plan-wat">${w[1]} fout — herhaal de woorden van dit Deel 1-thema (uit je boek/Deel 1).</div></div></div>`; });
-    h+='</div><div class="tip">Dit oordeel komt automatisch uit je foute antwoorden — geen aparte database nodig. Het meeste fout bovenaan = eerst doen.</div>';
+    weak.forEach((w,i)=>{ h+=`<div class="plan-item"><div class="plan-tijd" style="min-width:26px">${i+1}.</div><div style="flex:1"><div class="plan-blok">${esc(w[0])}</div><div class="plan-wat">${w[1]} fout — oefen de woorden van dit Deel 1-thema.</div><button class="btn sec" style="margin-top:6px" onclick="oefenDeel1('${esc(w[0])}')">Oefen ▶</button></div></div>`; });
+    h+='</div><div class="tip">Dit oordeel komt automatisch uit je foute antwoorden — geen aparte database nodig. Het meeste fout bovenaan = eerst doen. Tik op "Oefen" om meteen de Deel 1-woordkaarten van dat thema te openen.</div>';
   } else {
     h+='<div class="card"><b>Geen zwakke thema\'s</b> — Deel 1 zit goed. Ga door naar Deel 2 (Woorden + Grammatica).</div>';
   }
@@ -198,11 +198,14 @@ function diagResult(){
 }
 
 /* ---------- WOORDEN (flashcards) ---------- */
-let fcState=null;
-function renderWoorden(unit){
-  const units=DATA.units2;
-  if(unit==null) unit=units[0].n;
-  let h='<h2>📚 Woordkaarten · Deel 2</h2><div class="mut" style="margin-bottom:6px">Tik op de kaart om om te draaien. Markeer wat je nog niet kent.</div>';
+let fcState=null, wpart=2;
+function renderWoorden(unit, part){
+  if(part) wpart=part;
+  const units = wpart===1 ? DATA.units1 : DATA.units2;
+  if(unit==null || !units.find(x=>x.n===unit)) unit=units[0].n;
+  let h=`<h2>📚 Woordkaarten · Deel ${wpart}</h2>`;
+  h+='<div class="row" style="margin-bottom:8px"><button class="btn '+(wpart===1?'':'sec')+'" onclick="renderWoorden(null,1)">Deel 1 (basis)</button><button class="btn '+(wpart===2?'':'sec')+'" onclick="renderWoorden(null,2)">Deel 2 (toets)</button></div>';
+  h+='<div class="mut" style="margin-bottom:6px">Tik op de kaart om om te draaien. Markeer wat je nog niet kent.</div>';
   h+='<div class="selUnit">';
   units.forEach(u=>{ h+=`<button class="${u.n===unit?'on':''}" onclick="renderWoorden(${u.n})">${u.n}. ${esc(u.themeNl)}</button>`; });
   h+='</div><div id="fcwrap"></div>';
@@ -215,13 +218,14 @@ function drawCard(){
   const t=fcState.terms[fcState.i];
   const learn = !!store.learn[t.ar];
   const ex = t.exAr? `<div class="fc-ex ar">${esc(t.exAr)}</div><div class="fc-exnl">${esc(t.exNl)}</div>`:'';
+  const tr = t.tr? `<div class="fc-tr">${esc(t.tr)}</div>`:'';
   const wrap=$('#fcwrap');
   wrap.innerHTML=`
     <div class="counter">${fcState.i+1} / ${fcState.terms.length}</div>
     <div class="progress"><i style="width:${(fcState.i+1)/fcState.terms.length*100}%"></i></div>
     <div class="fc" id="card" onclick="this.classList.toggle('flip')">
       <div class="fc-inner">
-        <div class="fc-face"><div class="fc-ar ar">${esc(t.ar)}</div><div class="fc-tr">${esc(t.tr)}</div><div class="mut" style="margin-top:10px;font-size:12px">tik om betekenis te zien</div></div>
+        <div class="fc-face"><div class="fc-ar ar">${esc(t.ar)}</div>${tr}<div class="mut" style="margin-top:10px;font-size:12px">tik om betekenis te zien</div></div>
         <div class="fc-face fc-back"><div class="fc-nl">${esc(t.nl)}</div>${ex}</div>
       </div>
     </div>
@@ -235,6 +239,11 @@ function drawCard(){
 function cardNav(d){ fcState.i=(fcState.i+d+fcState.terms.length)%fcState.terms.length; drawCard(); }
 function toggleLearn(){ const t=fcState.terms[fcState.i]; markLearn(t.ar,!store.learn[t.ar]); drawCard(); }
 function shuffleCards(){ fcState.terms=shuffle(fcState.terms); fcState.i=0; drawCard(); }
+function oefenDeel1(theme){
+  const u=DATA.units1.find(x=>x.themeNl===theme);
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab==='woorden'));
+  renderWoorden(u?u.n:1, 1);
+}
 
 /* ---------- SCHRIJFMOTOR ---------- */
 function renderMotor(){
@@ -414,8 +423,10 @@ function renderSpelling(){
 /* ---------- QUIZ ---------- */
 let quizState=null;
 function renderQuizMenu(){
-  const units=DATA.units2;
-  let h='<h2>🧠 Quiz · Deel 2</h2><div class="mut" style="margin-bottom:8px">Kies een thema en modus.</div>';
+  const units = qpart===1 ? DATA.units1 : DATA.units2;
+  let h=`<h2>🧠 Quiz · Deel ${qpart}</h2>`;
+  h+='<div class="row" style="margin-bottom:8px"><button class="btn '+(qpart===1?'':'sec')+'" onclick="setQpart(1)">Deel 1 (basis)</button><button class="btn '+(qpart===2?'':'sec')+'" onclick="setQpart(2)">Deel 2 (toets)</button></div>';
+  h+='<div class="mut" style="margin-bottom:8px">Kies een thema en modus.</div>';
   h+='<div class="selUnit"><button class="'+((quizSel==-1)?'on':'')+'" onclick="setQuizSel(-1)">Alle</button>';
   units.forEach(u=>h+=`<button class="${quizSel===u.n?'on':''}" onclick="setQuizSel(${u.n})">${u.n}. ${esc(u.themeNl)}</button>`);
   h+='</div>';
@@ -425,10 +436,11 @@ function renderQuizMenu(){
   h+='<div class="tip">Intypen oefent ook je spelling. Harakat (klinkertekens) hoeven niet exact — de check is mild op tekens, streng op letters.</div>';
   view.innerHTML=h;
 }
-let quizSel=-1;
+let quizSel=-1, qpart=2;
+function setQpart(p){ qpart=p; quizSel=-1; renderQuizMenu(); }
 function setQuizSel(n){ quizSel=n; renderQuizMenu(); }
 function poolFor(onlyLearn){
-  let pool=[]; const units=DATA.units2;
+  let pool=[]; const units = qpart===1 ? DATA.units1 : DATA.units2;
   units.forEach(u=>{ if(quizSel!==-1 && u.n!==quizSel) return; u.terms.forEach(t=>pool.push({...t,unit:u.n,theme:u.themeNl})); });
   if(onlyLearn) pool=pool.filter(t=>store.learn[t.ar]);
   return pool;
@@ -447,7 +459,7 @@ function renderQuiz(){
   h+='<div class="progress"><i style="width:'+(quizState.i/quizState.q.length*100)+'%"></i></div>';
   h+=`<div class="card"><div class="mut">Schrijf/kies het Arabische woord voor:</div><div style="font-size:24px;font-weight:700;margin:6px 0">${esc(cur.nl)}</div>`;
   if(quizState.mode==='mc'){
-    const opts=buildOpts(cur,DATA.units2,'ar');
+    const opts=buildOpts(cur,(qpart===1?DATA.units1:DATA.units2),'ar');
     opts.forEach(o=>h+=`<button class="opt ar" onclick="quizMc(this,'${esc(o.ar)}','${esc(cur.ar)}')">${esc(o.ar)}</button>`);
     h+='<div id="qverdict"></div>';
   } else {
@@ -474,9 +486,9 @@ function quizType(correct,tr){
   const v=$('#qverdict'); $('#qin').disabled=true; __adv=quizNext;
   if(good){ quizState.score++; v.innerHTML='<div class="verdict ok">✓ Goed!</div>'; setTimeout(advNow,800); }
   else { markLearn(correct,true);
-    v.innerHTML=`<div class="verdict no">✗ Juist is: <span class="ar" style="font-size:24px">${esc(correct)}</span> <span class="mut">(${esc(tr)})</span></div><button class="btn" style="margin-top:10px" onclick="advNow()">Volgende ▶</button>`; }
+    v.innerHTML=`<div class="verdict no">✗ Juist is: <span class="ar" style="font-size:24px">${esc(correct)}</span>${tr?` <span class="mut">(${esc(tr)})</span>`:''}</div><button class="btn" style="margin-top:10px" onclick="advNow()">Volgende ▶</button>`; }
 }
-function quizSkip(correct,tr){ markLearn(correct,true); $('#qin').disabled=true; __adv=quizNext; $('#qverdict').innerHTML=`<div class="verdict no">Juist: <span class="ar" style="font-size:24px">${esc(correct)}</span> <span class="mut">(${esc(tr)})</span></div><button class="btn" style="margin-top:10px" onclick="advNow()">Volgende ▶</button>`; }
+function quizSkip(correct,tr){ markLearn(correct,true); $('#qin').disabled=true; __adv=quizNext; $('#qverdict').innerHTML=`<div class="verdict no">Juist: <span class="ar" style="font-size:24px">${esc(correct)}</span>${tr?` <span class="mut">(${esc(tr)})</span>`:''}</div><button class="btn" style="margin-top:10px" onclick="advNow()">Volgende ▶</button>`; }
 function quizResult(){
   const s=quizState.score,t=quizState.q.length,pct=Math.round(s/t*100);
   let h=`<h2>🧠 Quiz klaar</h2><div class="card"><div style="font-size:34px;font-weight:800;color:${pct>=80?'var(--acc)':pct>=55?'var(--gold)':'var(--red)'}">${s}/${t} · ${pct}%</div><div class="mut" style="margin-top:6px">Foute woorden zijn automatisch gemarkeerd als ★ nog-leren.</div></div>`;
