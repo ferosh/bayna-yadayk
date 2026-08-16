@@ -77,6 +77,8 @@
   .selUnit button.on{background:var(--acc);color:#06231a;font-weight:700}
   .tip{font-size:13px;color:var(--mut);background:var(--card2);border-left:3px solid var(--gold);border-radius:8px;padding:10px;margin:8px 0}
   .good-ex{color:var(--acc)} .bad-ex{color:var(--red);text-decoration:line-through}
+  .spk{background:none;border:none;color:var(--blue);font-size:17px;cursor:pointer;padding:0 4px;vertical-align:middle;line-height:1}
+  .spk:active{transform:scale(.9)}
 </style>
 </head>
 <body>
@@ -106,6 +108,7 @@
   <button data-tab="spelling"><span class="ic">🔤</span>Spelling</button>
   <button data-tab="quiz"><span class="ic">🧠</span>Quiz</button>
   <button data-tab="train"><span class="ic">🖊️</span>Train</button>
+  <button data-tab="voortgang"><span class="ic">📊</span>Voortgang</button>
 </nav>
 
 <script>
@@ -117,6 +120,20 @@ const isAr = s => /[\u0600-\u06FF]/.test(s||'');
 // taal (NL/EN) voor de Lesplan-module
 let lang = localStorage.getItem('byk2lang') || 'nl';
 function L(o){ if(o && typeof o==='object' && !Array.isArray(o) && ('nl' in o || 'en' in o)) return (o[lang]!=null?o[lang]:(o.nl!=null?o.nl:o.en)); return o; }
+// --- Arabische uitspraak via de browser (TTS) — 0 MB, geen audiobestanden ---
+const escA = s => esc(s).replace(/"/g,'&quot;');
+function speak(t){
+  if(!('speechSynthesis' in window) || !t) return;
+  try{
+    speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(t); u.lang='ar-SA'; u.rate=0.85;
+    const vs=speechSynthesis.getVoices(); const av=vs.filter(v=>/^ar/i.test(v.lang));
+    if(av.length) u.voice=av[0];
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+// uitspraakknopje (Arabisch in data-attribuut; klik via delegatie onderaan)
+function spk(t){ return `<button class="spk" data-t="${escA(t)}" aria-label="uitspraak" title="uitspraak">🔊</button>`; }
 
 // tekstgrootte (onthouden per gebruiker) — vergroot de hele inhoud uniform
 let txtScale = parseFloat(localStorage.getItem('byk2scale'));
@@ -187,7 +204,7 @@ function renderVandaag(){
   view.innerHTML=h;
 }
 function toggleDag(i){ const s=dayState(); const today=dstr(new Date()); if(s.checks.date!==today)s.checks={date:today,done:[false,false,false,false,false]}; s.checks.done[i]=!s.checks.done[i]; saveDay(s); renderVandaag(); }
-function finishDay(){ const s=dayState(); const today=dstr(new Date()); const yd=new Date(); yd.setDate(yd.getDate()-1); const yest=dstr(yd); if(s.lastDone===today) return; s.streak = (s.lastDone===yest)? s.streak+1 : 1; s.lastDone=today; s.dayCount=(s.dayCount||0)+1; saveDay(s); renderVandaag(); }
+function finishDay(){ const s=dayState(); const today=dstr(new Date()); const yd=new Date(); yd.setDate(yd.getDate()-1); const yest=dstr(yd); if(s.lastDone===today) return; s.streak = (s.lastDone===yest)? s.streak+1 : 1; s.best=Math.max(s.best||0,s.streak); s.lastDone=today; s.dayCount=(s.dayCount||0)+1; saveDay(s); renderVandaag(); }
 function goReview(){ const c=window.__dagCtx; navTo('quiz'); qpart=c.rev.qpart; quizSel=c.rev.unit; startQuiz('mc',false); }
 function goGramR(){ const c=window.__dagCtx; navTo('grammatica'); startGramQuiz(c.gk.key); }
 function goVerv(){ navTo('vervoeg'); vvMode='drill'; renderVervoeg(); }
@@ -225,6 +242,41 @@ function dagMarkLes(){
   s.checks.done[4]=true; saveDay(s);
   for(let k=0;k<4;k++){ if(!s.checks.done[k]) return '<button class="btn gold" onclick="dagNext()">✓ Nieuw thema af — volgende taak ▶</button>'; }
   return '<button class="btn gold" onclick="go(\'vandaag\')">✓ Alles gedaan! 🔥 Dag afronden</button>';
+}
+
+/* ---------- VOORTGANG + back-up ---------- */
+function vgStat(lbl,val){ return `<div class="card" style="flex:1;min-width:88px;text-align:center;margin:0;padding:12px 8px"><div class="mut" style="font-size:12px">${esc(lbl)}</div><div style="font-size:24px;font-weight:800">${esc(val)}</div></div>`; }
+function renderVoortgang(){
+  const s=dayState(); const learnCount=Object.keys(store.learn||{}).length;
+  let h='<h2>📊 Voortgang</h2>';
+  h+=`<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">${vgStat('🔥 Streak',(s.streak||0)+' dg')}${vgStat('🏆 Record',(s.best||s.streak||0)+' dg')}${vgStat('📆 Studiedagen',(s.dayCount||0))}${vgStat('⭐ Nog leren',learnCount+' w')}</div>`;
+  h+=`<div class="mut" style="font-size:13px;margin-bottom:10px">Laatst gestudeerd: ${esc(s.lastDone||'—')}</div>`;
+  h+='<h3>Beheersing per thema (Boek 1)</h3><div class="card">';
+  const allU=DATA.units2.concat(DATA.units1);
+  allU.forEach(u=>{ const tot=u.terms.length; const n=u.terms.filter(t=>store.learn[t.ar]).length; const pct=tot?Math.round((tot-n)/tot*100):0;
+    h+=`<div class="plan-item"><div style="flex:1"><div class="plan-blok">${esc(u.themeNl)}</div><div class="progress" style="margin:5px 0 2px"><i style="width:${pct}%"></i></div></div><div class="mut" style="min-width:74px;text-align:right;font-size:12px">${n} ★ / ${tot}</div></div>`;
+  });
+  h+='</div><div class="tip">De balk = woorden die je (nog) niet als ★ nog-leren hebt gemarkeerd. Markeer fouten in de quiz/kaarten om dit scherper te maken.</div>';
+  h+='<h3>Back-up / overzetten</h3><div class="card"><div class="mut" style="font-size:13px;margin-bottom:8px">Je voortgang zit in déze browser (geen cloud). Exporteer om te back-uppen of naar een ander toestel te zetten; importeer daar het bestand.</div><div class="row"><button class="btn" onclick="exportProgress()">⬇️ Exporteer</button><label class="btn sec" style="cursor:pointer">⬆️ Importeer<input type="file" accept="application/json,.json" onchange="importProgress(this)" style="display:none"></label></div></div>';
+  view.innerHTML=h;
+}
+function exportProgress(){
+  const data={_app:'bayna-yadayk', _exported:new Date().toISOString()};
+  ['byk2day','byk2sprint','byk2scale','byk2lang'].forEach(k=>{ const v=localStorage.getItem(k); if(v!=null) data[k]=v; });
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='byk-voortgang.json'; document.body.appendChild(a); a.click(); setTimeout(function(){a.remove(); URL.revokeObjectURL(a.href);},100);
+}
+function importProgress(inp){
+  const f=inp.files&&inp.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=function(){ try{ const data=JSON.parse(r.result);
+    ['byk2day','byk2sprint','byk2scale','byk2lang'].forEach(k=>{ if(data[k]!=null) localStorage.setItem(k, data[k]); });
+    store=JSON.parse(localStorage.getItem('byk2sprint')||'{}'); if(!store.learn) store.learn={};
+    lang=localStorage.getItem('byk2lang')||'nl';
+    txtScale=parseFloat(localStorage.getItem('byk2scale')); if(!txtScale||isNaN(txtScale)) txtScale=1.15; applyScale();
+    alert('Voortgang geïmporteerd ✓'); renderVoortgang();
+  }catch(e){ alert('Kon dit bestand niet lezen (geen geldige voortgang-back-up).'); } };
+  r.readAsText(f);
 }
 
 /* ---------- PLAN ---------- */
@@ -324,7 +376,7 @@ function drawCard(){
       <button class="btn ${learn?'gold':'sec'}" id="learnbtn" onclick="toggleLearn()">${learn?'★ nog leren':'☆ markeer'}</button>
       <button class="btn" onclick="cardNav(1)">volgende ▶</button>
     </div>
-    <div class="row" style="margin-top:8px"><button class="btn sec" onclick="shuffleCards()">🔀 husselen</button></div>`;
+    <div class="row" style="margin-top:8px"><button class="btn sec" onclick="speak(this.getAttribute('data-t'))" data-t="${escA(t.ar)}">🔊 uitspraak</button><button class="btn sec" onclick="shuffleCards()">🔀 husselen</button></div>`;
 }
 function cardNav(d){ fcState.i=(fcState.i+d+fcState.terms.length)%fcState.terms.length; drawCard(); }
 function toggleLearn(){ const t=fcState.terms[fcState.i]; markLearn(t.ar,!store.learn[t.ar]); drawCard(); }
@@ -664,27 +716,27 @@ function drawLesSection(){
     h+='</ul></div><div class="tip">'+esc(L(l.intro))+'</div>';
   } else if(s==='woorden'){
     h+='<div class="card"><table>';
-    l.woorden.forEach(w=>h+=`<tr><td class="a ar">${esc(w.ar)}</td><td>${esc(w[lang]||w.nl)}</td></tr>`);
+    l.woorden.forEach(w=>h+=`<tr><td class="a ar">${esc(w.ar)} ${spk(w.ar)}</td><td>${esc(w[lang]||w.nl)}</td></tr>`);
     h+=`</table></div><div class="row"><button class="btn gold" onclick="startLesVocab()">${esc(lt('overhoor'))}</button></div>`;
   } else if(s==='dialoog'){
     const d=l.dialoog;
     h+=`<div class="card"><div style="font-weight:700;font-size:17px" class="ar">${esc(d.titelAr)}</div><div class="mut">${esc(L(d.titel))}</div><div class="mut" style="font-size:12px;margin-top:6px">${esc(L(d.bron))}</div></div>`;
-    d.regels.forEach(r=>{ h+=`<div class="card" style="padding:10px 14px"><div style="color:var(--gold);font-size:12px" class="ar">${esc(r[0])}</div><div class="ar" style="font-size:23px">${esc(r[1])}</div><div class="mut" style="font-size:13px" dir="auto">${esc(L(r[2]))}</div></div>`; });
+    d.regels.forEach(r=>{ h+=`<div class="card" style="padding:10px 14px"><div style="color:var(--gold);font-size:12px" class="ar">${esc(r[0])}</div><div class="ar" style="font-size:23px">${esc(r[1])} ${spk(r[1])}</div><div class="mut" style="font-size:13px" dir="auto">${esc(L(r[2]))}</div></div>`; });
   } else if(s==='gram'){
     l.grammatica.forEach((g,gi)=>{
       h+=`<h3 class="ar" style="text-align:right">${esc(L(g.titel))}</h3><div class="card" dir="auto">${esc(L(g.uitleg))}<table style="margin-top:8px">`;
-      g.voorbeelden.forEach(v=>h+=`<tr><td class="a ar">${esc(v[0])}</td><td class="mut" dir="auto">${esc(L(v[1]))}</td></tr>`);
+      g.voorbeelden.forEach(v=>h+=`<tr><td class="a ar">${esc(v[0])} ${spk(v[0])}</td><td class="mut" dir="auto">${esc(L(v[1]))}</td></tr>`);
       h+=`</table><div class="row" style="margin-top:8px"><button class="btn sec" onclick="startLesQuiz(${gi})">${esc(lt('mini'))} (${g.quiz.length})</button></div></div>`;
     });
   } else if(s==='lezen'){
     const r=l.lezen;
     h+=`<div class="card"><div style="font-weight:700;font-size:17px" class="ar">${esc(r.titelAr)}</div><div class="mut">${esc(L(r.titel))}</div>`;
-    r.tekst.forEach(t=>h+=`<div style="margin-top:10px"><div class="ar" style="font-size:23px">${esc(t[0])}</div><div class="mut" style="font-size:13px" dir="auto">${esc(L(t[1]))}</div></div>`);
+    r.tekst.forEach(t=>h+=`<div style="margin-top:10px"><div class="ar" style="font-size:23px">${esc(t[0])} ${spk(t[0])}</div><div class="mut" style="font-size:13px" dir="auto">${esc(L(t[1]))}</div></div>`);
     h+=`</div><div class="row"><button class="btn gold" onclick="startLesRead()">${esc(lt('begrip'))} (${r.vragen.length})</button></div>`;
   } else if(s==='uitspraak'){
     const u=l.uitspraak;
     h+=`<h3 class="ar" style="text-align:right">${esc(u.titelAr)}</h3><div class="card" dir="auto">${esc(L(u.uitleg))}<table style="margin-top:8px">`;
-    u.voorbeelden.forEach(v=>h+=`<tr><td class="a ar">${esc(v[0])}</td><td class="mut" dir="auto">${esc(L(v[1]))}</td></tr>`);
+    u.voorbeelden.forEach(v=>h+=`<tr><td class="a ar">${esc(v[0])} ${spk(v[0])}</td><td class="mut" dir="auto">${esc(L(v[1]))}</td></tr>`);
     h+=`</table><div class="row" style="margin-top:8px"><button class="btn sec" onclick="startLesUit()">${esc(lt('mini'))} (${u.quiz.length})</button></div></div>`;
   } else if(s==='schrijven'){
     const w=l.schrijven;
@@ -753,6 +805,7 @@ function startLesVocab(){
 function go(tab){
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
   if(tab==='vandaag')return renderVandaag();
+  if(tab==='voortgang')return renderVoortgang();
   if(tab==='plan')return renderPlan();
   if(tab==='lesplan')return renderLesplan();
   if(tab==='diag')return renderDiag();
@@ -765,6 +818,9 @@ function go(tab){
   if(tab==='train')return renderTrain();
 }
 document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.tab)));
+// uitspraakknopjes (event-delegatie, want de app hertekent vaak)
+document.addEventListener('click',function(e){ const b=e.target.closest&&e.target.closest('.spk'); if(b) speak(b.getAttribute('data-t')); });
+if('speechSynthesis' in window){ try{ speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged=function(){ speechSynthesis.getVoices(); }; }catch(e){} }
 applyScale();
 renderVandaag();
 </script>
