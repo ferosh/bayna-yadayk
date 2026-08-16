@@ -192,7 +192,7 @@ function goReview(){ const c=window.__dagCtx; navTo('quiz'); qpart=c.rev.qpart; 
 function goGramR(){ const c=window.__dagCtx; navTo('grammatica'); startGramQuiz(c.gk.key); }
 function goVerv(){ navTo('vervoeg'); vvMode='drill'; renderVervoeg(); }
 function goLearn(){ navTo('quiz'); qpart=2; quizSel=-1; startQuiz('mc',true); }
-function goNieuw(){ window.__dagActive=null; const c=window.__dagCtx; navTo('lesplan'); renderLesplan(c.nieuw.id); } // les = geen vaste eindstreep → handmatig afvinken
+function goNieuw(){ window.__dagActive=null; window.__dagNieuwPending=true; const c=window.__dagCtx; navTo('lesplan'); renderLesplan(c.nieuw.id); } // les = handmatig, behalve de zelftoets (zie dagMarkLes)
 // start een Vandaag-taak én onthoud welke, zodat afronding 'm automatisch afvinkt
 function dagDo(i){ window.__dagActive=i; const fn=window[DAG_ITEMS[i].act]; if(fn) fn(); }
 // aangeroepen op elk quiz/oefening-resultaatscherm: vinkt de gestarte Vandaag-taak af.
@@ -215,6 +215,16 @@ function dagNext(){
   if(s.checks.date!==today){ go('vandaag'); return; }
   for(let k=0;k<4;k++){ if(!s.checks.done[k]){ dagDo(k); return; } }
   go('vandaag'); // oefen-taken klaar → terug (nieuw thema is handmatig / dag afronden)
+}
+// voor les-quizzes: vinkt 'nieuw thema' (item 4) alléén af bij de zelftoets die uit Vandaag is gestart
+function dagMarkLes(){
+  if(!(typeof lq!=='undefined' && lq && lq.isToets && window.__dagNieuwPending)) return dagMark();
+  window.__dagNieuwPending=false;
+  const s=dayState(), today=dstr(new Date());
+  if(s.checks.date!==today) s.checks={date:today,done:[false,false,false,false,false]};
+  s.checks.done[4]=true; saveDay(s);
+  for(let k=0;k<4;k++){ if(!s.checks.done[k]) return '<button class="btn gold" onclick="dagNext()">✓ Nieuw thema af — volgende taak ▶</button>'; }
+  return '<button class="btn gold" onclick="go(\'vandaag\')">✓ Alles gedaan! 🔥 Dag afronden</button>';
 }
 
 /* ---------- PLAN ---------- */
@@ -718,7 +728,7 @@ function lqAns(chosen,correct){
 }
 function lqResult(){
   const s=lq.score,t=lq.q.length,pct=Math.round(s/t*100),nw=lq.wrong.length;
-  let h=`<h2>${esc(lq.title)} — ${esc(lt('klaar'))}</h2><div class="card"><div style="font-size:34px;font-weight:800;color:${pct>=80?'var(--acc)':pct>=55?'var(--gold)':'var(--red)'}">${s}/${t} · ${pct}%</div></div><div class="row">`+dagMark();
+  let h=`<h2>${esc(lq.title)} — ${esc(lt('klaar'))}</h2><div class="card"><div style="font-size:34px;font-weight:800;color:${pct>=80?'var(--acc)':pct>=55?'var(--gold)':'var(--red)'}">${s}/${t} · ${pct}%</div></div><div class="row">`+dagMarkLes();
   if(nw) h+=`<button class="btn gold" onclick="lqRun(lq.wrong.slice(),lq.title)">${esc(lt('herhaal'))} (${nw})</button>`;
   h+=`<button class="btn sec" onclick="lqBack()">${esc(lt('terughoofd'))}</button></div>`;
   view.innerHTML=h;
@@ -731,7 +741,7 @@ function startLesToets(){
   const l=lesState.lesson; let all=[];
   l.grammatica.forEach(g=>all=all.concat(g.quiz));
   all=all.concat(l.lezen.vragen).concat(l.uitspraak.quiz);
-  lqRun(all, lt('zelftoetsTitle')+' · '+L(l.theme));
+  lqRun(all, lt('zelftoetsTitle')+' · '+L(l.theme)); lq.isToets=true;
 }
 function startLesVocab(){
   const ws=lesState.lesson.woorden;
