@@ -177,15 +177,13 @@ function renderVandaag(){
   });
   h+=`<div class="row" style="margin-top:6px"><button class="btn ${allChecked&&!doneToday?'gold':'sec'}" onclick="finishDay()" ${doneToday?'disabled':''}>${doneToday?'Vandaag afgerond ✓':'🔥 Dag afronden'}</button></div>`;
   // augustus-plan
-  h+='<h3>📆 Augustus-inhaalplan (4 weken)</h3><div class="card">';
+  h+='<h3>📆 Augustus-herstart (2 weken · meer tijd nu)</h3><div class="card">';
   const AUG=[
-    ['Week 1 · 2–8 aug','Herstart + inhaal Boek 1 Deel 1 (thema 1–8): dagelijks 2 thema\'s woorden + grammatica + vervoegen.'],
-    ['Week 2 · 9–15 aug','Inhaal Boek 1 Deel 2 (thema 9–16) + spelling. Blijf Deel 1 herhalen via Vandaag.'],
-    ['Week 3 · 16–22 aug','Boek 2 Unit 1 (gezondheid) volledig in de Les-tab + je zwakke plekken (★).'],
-    ['Week 4 · 23–31 aug','Boek 2 Unit 2 (ontspanning) + alles consolideren met de zelftoetsen.'],
+    ['16–22 aug','Herstart: Boek 1 volledig inhalen (thema 1–16) — 2–3 thema\'s/dag: woorden + grammatica + vervoegen. Meer tijd → gerust 2 rondes/dag.'],
+    ['23–31 aug','Boek 2 Unit 1 + 2 volledig (lessen + zelftoetsen) + alles consolideren + je zwakke plekken (★).'],
   ];
-  AUG.forEach(w=>h+=`<div class="plan-item"><div class="plan-tijd" style="min-width:96px">${esc(w[0])}</div><div class="plan-wat">${esc(w[1])}</div></div>`);
-  h+='</div><div class="tip">Vakantie = meer tijd: pak gerust 2 rondes per dag. Mis je een dag? Niet erg — de streak begint opnieuw, de kennis niet.</div>';
+  AUG.forEach(w=>h+=`<div class="plan-item"><div class="plan-tijd" style="min-width:90px">${esc(w[0])}</div><div class="plan-wat">${esc(w[1])}</div></div>`);
+  h+='</div><div class="tip">Fris begin vanaf 16 aug. Je hebt nu meer tijd — bouw de streak opnieuw op; de kennis komt snel terug omdat je het eerder al zag.</div>';
   view.innerHTML=h;
 }
 function toggleDag(i){ const s=dayState(); const today=dstr(new Date()); if(s.checks.date!==today)s.checks={date:today,done:[false,false,false,false,false]}; s.checks.done[i]=!s.checks.done[i]; saveDay(s); renderVandaag(); }
