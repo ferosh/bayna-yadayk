@@ -173,7 +173,7 @@ function renderVandaag(){
   DAG_ITEMS.forEach((it,i)=>{
     const nm = i===0?rev.theme : i===1?gk.nl : i===4?(L(nieuw.theme)+' ('+nieuw.boek.split('·').pop().trim()+' U'+nieuw.unit+')') : '';
     const done=s.checks.done[i];
-    h+=`<div class="card" style="padding:12px 14px"><div class="row" style="justify-content:space-between;align-items:center"><div style="flex:1"><b>${it.ic} ${esc(it.label(nm))}</b></div><label style="display:flex;align-items:center;gap:6px;font-size:13px" class="mut"><input type="checkbox" ${done?'checked':''} onclick="toggleDag(${i})" style="width:20px;height:20px"> af</label></div><div class="row" style="margin-top:8px"><button class="btn" onclick="${it.act}()">Doe ▶</button></div></div>`;
+    h+=`<div class="card" style="padding:12px 14px${done?';opacity:.6':''}"><div class="row" style="justify-content:space-between;align-items:center"><div style="flex:1"><b>${done?'✅ ':''}${it.ic} ${esc(it.label(nm))}</b></div><label style="display:flex;align-items:center;gap:6px;font-size:13px" class="mut"><input type="checkbox" ${done?'checked':''} onclick="toggleDag(${i})" style="width:20px;height:20px"> af</label></div><div class="row" style="margin-top:8px"><button class="btn" onclick="dagDo(${i})">Doe ▶</button></div></div>`;
   });
   h+=`<div class="row" style="margin-top:6px"><button class="btn ${allChecked&&!doneToday?'gold':'sec'}" onclick="finishDay()" ${doneToday?'disabled':''}>${doneToday?'Vandaag afgerond ✓':'🔥 Dag afronden'}</button></div>`;
   // augustus-plan
@@ -192,7 +192,30 @@ function goReview(){ const c=window.__dagCtx; navTo('quiz'); qpart=c.rev.qpart; 
 function goGramR(){ const c=window.__dagCtx; navTo('grammatica'); startGramQuiz(c.gk.key); }
 function goVerv(){ navTo('vervoeg'); vvMode='drill'; renderVervoeg(); }
 function goLearn(){ navTo('quiz'); qpart=2; quizSel=-1; startQuiz('mc',true); }
-function goNieuw(){ const c=window.__dagCtx; navTo('lesplan'); renderLesplan(c.nieuw.id); }
+function goNieuw(){ window.__dagActive=null; const c=window.__dagCtx; navTo('lesplan'); renderLesplan(c.nieuw.id); } // les = geen vaste eindstreep → handmatig afvinken
+// start een Vandaag-taak én onthoud welke, zodat afronding 'm automatisch afvinkt
+function dagDo(i){ window.__dagActive=i; const fn=window[DAG_ITEMS[i].act]; if(fn) fn(); }
+// aangeroepen op elk quiz/oefening-resultaatscherm: vinkt de gestarte Vandaag-taak af.
+// Geeft HTML terug (een 'terug naar Vandaag'-knop) als er iets is afgevinkt, anders ''.
+function dagMark(){
+  if(window.__dagActive==null) return '';
+  const i=window.__dagActive; window.__dagActive=null;
+  const s=dayState(); const today=dstr(new Date());
+  if(s.checks.date!==today) s.checks={date:today,done:[false,false,false,false,false]};
+  s.checks.done[i]=true; saveDay(s);
+  const done=s.checks.done, allDone=done.every(x=>x);
+  // volgende openstaande oefen-taak (0-3); item 4 = les = handmatig
+  let nxt=-1; for(let k=0;k<4;k++){ if(!done[k]){ nxt=k; break; } }
+  if(nxt>=0) return `<button class="btn gold" onclick="dagNext()">✓ Afgevinkt — volgende taak ▶</button>`;
+  if(!done[4]) return '<button class="btn gold" onclick="go(\'vandaag\')">✓ Afgevinkt — nog: 📘 nieuw thema (handmatig)</button>';
+  return '<button class="btn gold" onclick="go(\'vandaag\')">✓ Alles gedaan! 🔥 Dag afronden</button>';
+}
+function dagNext(){
+  const s=dayState(), today=dstr(new Date());
+  if(s.checks.date!==today){ go('vandaag'); return; }
+  for(let k=0;k<4;k++){ if(!s.checks.done[k]){ dagDo(k); return; } }
+  go('vandaag'); // oefen-taken klaar → terug (nieuw thema is handmatig / dag afronden)
+}
 
 /* ---------- PLAN ---------- */
 function renderPlan(){
@@ -371,7 +394,7 @@ function gramResult(){
   const s=gramState.score,t=gramState.q.length,pct=Math.round(s/t*100);
   const nw=gramState.wrong.length;
   let h=`<h2>${esc(gramState.topic.emoji)} ${esc(gramState.topic.nl)} — klaar</h2><div class="card"><div style="font-size:34px;font-weight:800;color:${pct>=80?'var(--acc)':pct>=55?'var(--gold)':'var(--red)'}">${s}/${t} · ${pct}%</div>${nw?`<div class="mut" style="margin-top:6px">${nw} fout — herhaal ze hieronder.</div>`:'<div class="mut" style="margin-top:6px">Alles goed! 🎉</div>'}</div>`;
-  h+='<div class="row">';
+  h+='<div class="row">'+dagMark();
   if(nw) h+=`<button class="btn gold" onclick="runGramQuiz(gramState.topic, shuffle(gramState.wrong.slice()))">Herhaal de foute (${nw})</button>`;
   h+=`<button class="btn" onclick="startGramQuiz('${gramState.topic.key}')">Opnieuw</button><button class="btn sec" onclick="renderGram('${gramState.topic.key}')">Theorie</button><button class="btn sec" onclick="renderGram()">Ander</button></div>`;
   view.innerHTML=h;
@@ -462,7 +485,7 @@ function vvResult(kind){
   const s=vvState.score,t=vvState.q.length,pct=Math.round(s/t*100);
   const nw=vvState.wrong.length;
   let h=`<div class="card"><div style="font-size:34px;font-weight:800;color:${pct>=80?'var(--acc)':pct>=55?'var(--gold)':'var(--red)'}">${s}/${t} · ${pct}%</div>${nw?`<div class="mut" style="margin-top:6px">${nw} fout — herhaal ze hieronder.</div>`:''}</div>`;
-  h+='<div class="row">';
+  h+='<div class="row">'+dagMark();
   if(nw) h+=`<button class="btn gold" onclick="${kind==='drill'?'runVvDrill':'runVvHerken'}(shuffle(vvState.wrong.slice()))">Herhaal de foute (${nw})</button>`;
   h+=`<button class="btn" onclick="${kind==='drill'?'startVvDrill()':'startVvHerken()'}">Opnieuw</button><button class="btn sec" onclick="setVv(\'leer\')">Terug naar tabel</button></div>`;
   $('#vvwrap').innerHTML=h;
@@ -549,7 +572,7 @@ function quizSkip(correct,tr){ markLearn(correct,true); $('#qin').disabled=true;
 function quizResult(){
   const s=quizState.score,t=quizState.q.length,pct=Math.round(s/t*100);
   let h=`<h2>🧠 Quiz klaar</h2><div class="card"><div style="font-size:34px;font-weight:800;color:${pct>=80?'var(--acc)':pct>=55?'var(--gold)':'var(--red)'}">${s}/${t} · ${pct}%</div><div class="mut" style="margin-top:6px">Foute woorden zijn automatisch gemarkeerd als ★ nog-leren.</div></div>`;
-  h+='<div class="row"><button class="btn" onclick="renderQuizMenu()">Nieuwe quiz</button><button class="btn sec" onclick="go(\'woorden\')">Woorden bekijken</button></div>';
+  h+='<div class="row">'+dagMark()+'<button class="btn" onclick="renderQuizMenu()">Nieuwe quiz</button><button class="btn sec" onclick="go(\'woorden\')">Woorden bekijken</button></div>';
   view.innerHTML=h; quizState=null;
 }
 
@@ -695,7 +718,7 @@ function lqAns(chosen,correct){
 }
 function lqResult(){
   const s=lq.score,t=lq.q.length,pct=Math.round(s/t*100),nw=lq.wrong.length;
-  let h=`<h2>${esc(lq.title)} — ${esc(lt('klaar'))}</h2><div class="card"><div style="font-size:34px;font-weight:800;color:${pct>=80?'var(--acc)':pct>=55?'var(--gold)':'var(--red)'}">${s}/${t} · ${pct}%</div></div><div class="row">`;
+  let h=`<h2>${esc(lq.title)} — ${esc(lt('klaar'))}</h2><div class="card"><div style="font-size:34px;font-weight:800;color:${pct>=80?'var(--acc)':pct>=55?'var(--gold)':'var(--red)'}">${s}/${t} · ${pct}%</div></div><div class="row">`+dagMark();
   if(nw) h+=`<button class="btn gold" onclick="lqRun(lq.wrong.slice(),lq.title)">${esc(lt('herhaal'))} (${nw})</button>`;
   h+=`<button class="btn sec" onclick="lqBack()">${esc(lt('terughoofd'))}</button></div>`;
   view.innerHTML=h;
