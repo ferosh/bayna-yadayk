@@ -134,6 +134,8 @@ function speak(t){
 }
 // uitspraakknopje (Arabisch in data-attribuut; klik via delegatie onderaan)
 function spk(t){ return `<button class="spk" data-t="${escA(t)}" aria-label="uitspraak" title="uitspraak">🔊</button>`; }
+let autoSpeak = localStorage.getItem('byk2autospeak')==='1';
+function setAutoSpeak(v){ autoSpeak=v; localStorage.setItem('byk2autospeak', v?'1':'0'); renderVoortgang(); }
 
 // tekstgrootte (onthouden per gebruiker) — vergroot de hele inhoud uniform
 let txtScale = parseFloat(localStorage.getItem('byk2scale'));
@@ -257,6 +259,7 @@ function renderVoortgang(){
     h+=`<div class="plan-item"><div style="flex:1"><div class="plan-blok">${esc(u.themeNl)}</div><div class="progress" style="margin:5px 0 2px"><i style="width:${pct}%"></i></div></div><div class="mut" style="min-width:74px;text-align:right;font-size:12px">${n} ★ / ${tot}</div></div>`;
   });
   h+='</div><div class="tip">De balk = woorden die je (nog) niet als ★ nog-leren hebt gemarkeerd. Markeer fouten in de quiz/kaarten om dit scherper te maken.</div>';
+  h+='<h3>Instellingen</h3><div class="card"><label style="display:flex;align-items:center;gap:10px;cursor:pointer"><input type="checkbox" '+(autoSpeak?'checked':'')+' onclick="setAutoSpeak(this.checked)" style="width:20px;height:20px"><div><b>🔊 Uitspraak automatisch afspelen</b><div class="mut" style="font-size:12px">Spreekt het woord vanzelf uit bij flashcards en bij het juiste antwoord. Standaard uit — fijn bij flashcards, kan storend zijn mid-quiz of in het openbaar.</div></div></label></div>';
   h+='<h3>Back-up / overzetten</h3><div class="card"><div class="mut" style="font-size:13px;margin-bottom:8px">Je voortgang zit in déze browser (geen cloud). Exporteer om te back-uppen of naar een ander toestel te zetten; importeer daar het bestand.</div><div class="row"><button class="btn" onclick="exportProgress()">⬇️ Exporteer</button><label class="btn sec" style="cursor:pointer">⬆️ Importeer<input type="file" accept="application/json,.json" onchange="importProgress(this)" style="display:none"></label></div></div>';
   view.innerHTML=h;
 }
@@ -317,7 +320,7 @@ function diagAns(btn,chosen,correct,theme){
   const good = norm(chosen)===norm(correct);
   document.querySelectorAll('.opt').forEach(b=>{b.style.pointerEvents='none'; if(norm(b.textContent)===norm(correct))b.classList.add('good');});
   __adv=()=>{diagState.i++; renderDiag();};
-  if(good){ diagState.score++; setTimeout(advNow,600); }
+  if(good){ diagState.score++; setTimeout(advNow,1500); }
   else { btn.classList.add('bad'); diagState.wrongThemes[theme]=(diagState.wrongThemes[theme]||0)+1;
     $('#diagVerdict').innerHTML=`<div class="verdict no" style="margin-top:8px">✗ Juist: <span class="ar" style="font-size:24px">${esc(correct)}</span></div><button class="btn" style="margin-top:10px" onclick="advNow()">Volgende ▶</button>`; }
 }
@@ -358,6 +361,7 @@ function renderWoorden(unit, part){
 }
 function drawCard(){
   const t=fcState.terms[fcState.i];
+  if(autoSpeak) speak(t.ar);
   const learn = !!store.learn[t.ar];
   const ex = t.exAr? `<div class="fc-ex ar">${esc(t.exAr)}</div><div class="fc-exnl">${esc(t.exNl)}</div>`:'';
   const tr = t.tr? `<div class="fc-tr">${esc(t.tr)}</div>`:'';
@@ -450,7 +454,7 @@ function gramAns(btn,chosen,correct){
   __adv=()=>{gramState.i++; drawGramQuiz();};
   $('#gramVerdict').innerHTML=`<div class="verdict ${ok?'ok':'no'}" style="margin-top:10px">${ok?'✓ Goed!':'✗ Fout'} <span class="mut" style="font-weight:400">${esc(c.u)}</span></div>`
     + (ok?'':'<button class="btn" style="margin-top:10px" onclick="advNow()">Volgende ▶</button>');
-  if(ok) setTimeout(advNow,1200);
+  if(ok) setTimeout(advNow,2200);
 }
 function gramResult(){
   const s=gramState.score,t=gramState.q.length,pct=Math.round(s/t*100);
@@ -514,7 +518,7 @@ function vvCheck(skip){
   const val=skip?'':$('#vvin').value;
   const good=!skip && norm(val)===norm(c.ans);
   const v=$('#vvverdict'); $('#vvin').disabled=true; __adv=()=>{vvState.i++; drawVvDrill();};
-  if(good){ vvState.score++; v.innerHTML='<div class="verdict ok">✓ Goed!</div>'; setTimeout(advNow,800); }
+  if(good){ vvState.score++; v.innerHTML='<div class="verdict ok">✓ Goed!</div>'; setTimeout(advNow,1800); }
   else { vvState.wrong.push(c); v.innerHTML=`<div class="verdict no">Juist: <span class="ar" style="font-size:24px">${esc(c.ans)}</span></div><button class="btn" style="margin-top:10px" onclick="advNow()">Volgende ▶</button>`; }
 }
 function startVvHerken(){
@@ -540,7 +544,7 @@ function vvHerkenAns(btn,chosen,correct){
   const c=vvState.q[vvState.i];
   const p=DATA.vervoegenPersonen.find(x=>x[2]===correct);
   __adv=()=>{vvState.i++; drawVvHerken();};
-  if(good){ vvState.score++; btn.classList.add('good'); $('#vvverdict').innerHTML='<div class="verdict ok" style="margin-top:8px">✓ Goed!</div>'; setTimeout(advNow,700); }
+  if(good){ vvState.score++; btn.classList.add('good'); $('#vvverdict').innerHTML='<div class="verdict ok" style="margin-top:8px">✓ Goed!</div>'; setTimeout(advNow,1600); }
   else { btn.classList.add('bad'); vvState.wrong.push(c); $('#vvverdict').innerHTML=`<div class="verdict no" style="margin-top:8px">✗ Juist: <span class="ar" style="font-size:23px">${esc(p[1])}</span> <span class="mut">${esc(p[0])}</span></div><button class="btn" style="margin-top:10px" onclick="advNow()">Volgende ▶</button>`; }
 }
 function vvResult(kind){
@@ -601,7 +605,7 @@ function renderQuiz(){
   h+='<div class="progress"><i style="width:'+(quizState.i/quizState.q.length*100)+'%"></i></div>';
   h+=`<div class="card"><div class="mut">Schrijf/kies het Arabische woord voor:</div><div style="font-size:24px;font-weight:700;margin:6px 0">${esc(cur.nl)}</div>`;
   if(quizState.mode==='mc'){
-    const opts=buildOpts(cur,(qpart===1?DATA.units1:DATA.units2),'ar');
+    const opts=buildOpts(cur,(qpart===1?DATA.units1:DATA.units2),'ar'); quizState.opts=opts;
     opts.forEach(o=>h+=`<button class="opt ar" onclick="quizMc(this,'${esc(o.ar)}','${esc(cur.ar)}')">${esc(o.ar)}</button>`);
     h+='<div id="qverdict"></div>';
   } else {
@@ -614,19 +618,28 @@ function renderQuiz(){
   if(quizState.mode==='type'){ const inp=$('#qin'); if(inp) inp.focus(); }
 }
 function quizNext(){ quizState.i++; renderQuiz(); }
+function optGlossList(chosen,correct){
+  if(!quizState.opts) return '';
+  let g='<div class="mut" style="margin-top:8px;font-size:13px;line-height:1.9">';
+  quizState.opts.forEach(o=>{ const isC=norm(o.ar)===norm(correct); const isX=norm(o.ar)===norm(chosen)&&!isC;
+    g+=`<div>${isC?'✓':(isX?'✗':'·')} <span class="ar" style="font-size:19px">${esc(o.ar)}</span> — ${esc(o[lang]||o.nl)}</div>`; });
+  return g+'</div>';
+}
 function quizMc(btn,chosen,correct){
   const good=norm(chosen)===norm(correct);
   document.querySelectorAll('.opt').forEach(b=>{b.style.pointerEvents='none'; if(norm(b.textContent)===norm(correct))b.classList.add('good');});
   __adv=quizNext;
   const v=$('#qverdict');
-  if(good){ quizState.score++; v.innerHTML='<div class="verdict ok" style="margin-top:8px">✓ Goed!</div>'; setTimeout(advNow,800); }
+  if(autoSpeak) speak(correct);
+  if(good){ quizState.score++; v.innerHTML='<div class="verdict ok" style="margin-top:8px">✓ Goed!</div>'+optGlossList(chosen,correct); setTimeout(advNow,1800); }
   else { btn.classList.add('bad'); markLearn(correct,true);
-    v.innerHTML=`<div class="verdict no" style="margin-top:8px">✗ Juist: <span class="ar" style="font-size:24px">${esc(correct)}</span></div><button class="btn" style="margin-top:10px" onclick="advNow()">Volgende ▶</button>`; }
+    v.innerHTML=`<div class="verdict no" style="margin-top:8px">✗ Juist: <span class="ar" style="font-size:24px">${esc(correct)}</span></div>`+optGlossList(chosen,correct)+`<button class="btn" style="margin-top:10px" onclick="advNow()">Volgende ▶</button>`; }
 }
 function quizType(correct,tr){
   const val=$('#qin').value; const good=norm(val)===norm(correct);
   const v=$('#qverdict'); $('#qin').disabled=true; __adv=quizNext;
-  if(good){ quizState.score++; v.innerHTML='<div class="verdict ok">✓ Goed!</div>'; setTimeout(advNow,800); }
+  if(autoSpeak) speak(correct);
+  if(good){ quizState.score++; v.innerHTML='<div class="verdict ok">✓ Goed!</div>'; setTimeout(advNow,1800); }
   else { markLearn(correct,true);
     v.innerHTML=`<div class="verdict no">✗ Juist is: <span class="ar" style="font-size:24px">${esc(correct)}</span>${tr?` <span class="mut">(${esc(tr)})</span>`:''}</div><button class="btn" style="margin-top:10px" onclick="advNow()">Volgende ▶</button>`; }
 }
@@ -776,7 +789,7 @@ function lqAns(chosen,correct){
   __adv=()=>{lq.i++; lqDraw();};
   const okTxt = lang==='en'?'✓ Correct!':'✓ Goed!', noTxt = lang==='en'?'✗ Wrong':'✗ Fout', nextTxt = lang==='en'?'Next ▶':'Volgende ▶';
   $('#lqVerdict').innerHTML=`<div class="verdict ${ok?'ok':'no'}" style="margin-top:10px">${ok?okTxt:noTxt} <span class="mut" style="font-weight:400" dir="auto">${esc(L(c.u)||'')}</span></div>`+(ok?'':`<button class="btn" style="margin-top:10px" onclick="advNow()">${nextTxt}</button>`);
-  if(ok) setTimeout(advNow,1100);
+  if(ok) setTimeout(advNow,2100);
 }
 function lqResult(){
   const s=lq.score,t=lq.q.length,pct=Math.round(s/t*100),nw=lq.wrong.length;
