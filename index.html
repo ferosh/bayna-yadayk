@@ -177,7 +177,7 @@ const DAG_ITEMS = [
 function renderVandaag(){
   const s=dayState();
   const today=dstr(new Date()); const yd=new Date(); yd.setDate(yd.getDate()-1); const yest=dstr(yd);
-  if(s.checks.date!==today){ s.checks={date:today, done:[false,false,false,false,false]}; }
+  if(s.checks.date!==today){ s.checks={date:today, done:[false,false,false,false,false]}; s.aheadToday=0; saveDay(s); }
   // roulerende herhaal-doelen
   const REV=DATA.units2.map(u=>({qpart:2,unit:u.n,theme:u.themeNl})).concat(DATA.units1.map(u=>({qpart:1,unit:u.n,theme:u.themeNl})));
   const rev=REV[s.dayCount % REV.length];
@@ -187,14 +187,19 @@ function renderVandaag(){
   const doneToday = s.lastDone===today;
   const allChecked = s.checks.done.every(x=>x);
   let h='<h2>📅 Vandaag — jouw Arabische inhaalslag</h2>';
-  h+=`<div class="card"><div class="row" style="justify-content:space-between"><div><div style="font-size:13px" class="mut">${esc(today)}</div><div style="font-size:15px;font-weight:700">🔥 Streak: ${s.streak} dag${s.streak===1?'':'en'}${doneToday?' — vandaag ✓':''}</div></div><div style="font-size:34px">${doneToday?'✅':'📖'}</div></div></div>`;
+  h+=`<div class="card"><div class="row" style="justify-content:space-between"><div><div style="font-size:13px" class="mut">${esc(today)}${s.aheadToday?` · 🔜 vooruit-modus (+${s.aheadToday})`:''}</div><div style="font-size:15px;font-weight:700">🔥 Streak: ${s.streak||0} dag${(s.streak||0)===1?'':'en'}${doneToday?' — vandaag ✓':''}</div></div><div style="font-size:34px">${doneToday?'✅':'📖'}</div></div></div>`;
   h+='<div class="tip">Doe elke dag dit rijtje (±30 min). De herhaling rouleert automatisch door alle vorige thema\'s, zodat je inhaalt én bijblijft. Tik "Doe" → oefen → kom terug → vink af.</div>';
   DAG_ITEMS.forEach((it,i)=>{
     const nm = i===0?rev.theme : i===1?gk.nl : i===4?(L(nieuw.theme)+' ('+nieuw.boek.split('·').pop().trim()+' U'+nieuw.unit+')') : '';
     const done=s.checks.done[i];
     h+=`<div class="card" style="padding:12px 14px${done?';opacity:.6':''}"><div class="row" style="justify-content:space-between;align-items:center"><div style="flex:1"><b>${done?'✅ ':''}${it.ic} ${esc(it.label(nm))}</b></div><label style="display:flex;align-items:center;gap:6px;font-size:13px" class="mut"><input type="checkbox" ${done?'checked':''} onclick="toggleDag(${i})" style="width:20px;height:20px"> af</label></div><div class="row" style="margin-top:8px"><button class="btn" onclick="dagDo(${i})">Doe ▶</button></div></div>`;
   });
-  h+=`<div class="row" style="margin-top:6px"><button class="btn ${allChecked&&!doneToday?'gold':'sec'}" onclick="finishDay()" ${doneToday?'disabled':''}>${doneToday?'Vandaag afgerond ✓':'🔥 Dag afronden'}</button></div>`;
+  if(doneToday){
+    h+=`<div class="row" style="margin-top:6px"><button class="btn sec" disabled>Vandaag afgerond ✓</button><button class="btn gold" onclick="startVolgendeDag()">▶ Volgende dag alvast</button></div>`;
+    h+='<div class="tip">Zin in meer? Start alvast de volgende dag: verse taken + het volgende thema in de rotatie. Je streak blijft eerlijk (1 per kalenderdag) — dit is vooruitwerken, geen streak-inflatie.</div>';
+  } else {
+    h+=`<div class="row" style="margin-top:6px"><button class="btn ${allChecked?'gold':'sec'}" onclick="finishDay()">🔥 Dag afronden</button></div>`;
+  }
   // augustus-plan
   h+='<h3>📆 Augustus-herstart (2 weken · meer tijd nu)</h3><div class="card">';
   const AUG=[
@@ -207,6 +212,8 @@ function renderVandaag(){
 }
 function toggleDag(i){ const s=dayState(); const today=dstr(new Date()); if(s.checks.date!==today)s.checks={date:today,done:[false,false,false,false,false]}; s.checks.done[i]=!s.checks.done[i]; saveDay(s); renderVandaag(); }
 function finishDay(){ const s=dayState(); const today=dstr(new Date()); const yd=new Date(); yd.setDate(yd.getDate()-1); const yest=dstr(yd); if(s.lastDone===today) return; s.streak = (s.lastDone===yest)? s.streak+1 : 1; s.best=Math.max(s.best||0,s.streak); s.lastDone=today; s.dayCount=(s.dayCount||0)+1; saveDay(s); renderVandaag(); }
+// vooruitwerken: verse taken + volgende thema-rotatie, zonder de streak (per kalenderdag) te inflateren
+function startVolgendeDag(){ const s=dayState(), today=dstr(new Date()); s.dayCount=(s.dayCount||0)+1; s.checks={date:today,done:[false,false,false,false,false]}; s.aheadToday=(s.aheadToday||0)+1; saveDay(s); renderVandaag(); }
 function goReview(){ const c=window.__dagCtx; navTo('quiz'); qpart=c.rev.qpart; quizSel=c.rev.unit; startQuiz('mc',false); }
 function goGramR(){ const c=window.__dagCtx; navTo('grammatica'); startGramQuiz(c.gk.key); }
 function goVerv(){ navTo('vervoeg'); vvMode='drill'; renderVervoeg(); }
